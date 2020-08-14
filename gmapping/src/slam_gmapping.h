@@ -36,6 +36,7 @@
 #include "tf/transform_listener.h"
 #include "tf/transform_broadcaster.h"
 #include "message_filters/subscriber.h"
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include "tf/message_filter.h"
 
 #include "gmapping/gridfastslam/gridslamprocessor.h"
@@ -57,6 +58,7 @@ class SlamGMapping
     void publishTransform();
   
     void laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan);
+    void PoseCorrectionCallback(const geometry_msgs::PoseWithCovarianceStamped &init_pose);
     bool mapCallback(nav_msgs::GetMap::Request  &req,
                      nav_msgs::GetMap::Response &res);
     void publishLoop(double transform_publish_period);
@@ -69,6 +71,7 @@ class SlamGMapping
     ros::ServiceServer ss_;
     tf::TransformListener tf_;
     message_filters::Subscriber<sensor_msgs::LaserScan>* scan_filter_sub_;
+    ros::Subscriber initial_pose_sub_;
     tf::MessageFilter<sensor_msgs::LaserScan>* scan_filter_;
     tf::TransformBroadcaster* tfB_;
 
@@ -143,6 +146,7 @@ class SlamGMapping
     double llsamplestep_;
     double lasamplerange_;
     double lasamplestep_;
+    geometry_msgs::Pose initial_pose_;
     
     ros::NodeHandle private_nh_;
     

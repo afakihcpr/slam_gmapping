@@ -143,6 +143,7 @@ SlamGMapping::SlamGMapping():
   map_to_odom_(tf::Transform(tf::createQuaternionFromRPY( 0, 0, 0 ), tf::Point(0, 0, 0 ))),
   laser_count_(0), private_nh_("~"), scan_filter_sub_(NULL), scan_filter_(NULL), transform_thread_(NULL)
 {
+  initial_pose_.orientation.w = 1.0;
   seed_ = time(NULL);
   init();
 }
@@ -275,9 +276,15 @@ void SlamGMapping::startLiveSlam()
   scan_filter_sub_ = new message_filters::Subscriber<sensor_msgs::LaserScan>(node_, "scan", 5);
   scan_filter_ = new tf::MessageFilter<sensor_msgs::LaserScan>(*scan_filter_sub_, tf_, odom_frame_, 5);
   scan_filter_->registerCallback(boost::bind(&SlamGMapping::laserCallback, this, _1));
-
+  initial_pose_sub_ = node_.subscribe("/initialpose", 1, &SlamGMapping::PoseCorrectionCallback, this);
   transform_thread_ = new boost::thread(boost::bind(&SlamGMapping::publishLoop, this, transform_publish_period_));
 }
+
+void SlamGMapping::PoseCorrectionCallback(const geometry_msgs::PoseWithCovarianceStamped &init_pose){
+  initial_pose_ = init_pose.pose.pose;
+  got_first_scan_ = false;
+}
+
 
 void SlamGMapping::startReplay(const std::string & bag_fname, std::string scan_topic)
 {
@@ -514,11 +521,20 @@ SlamGMapping::initMapper(const sensor_msgs::LaserScan& scan)
 
   /// @todo Expose setting an initial pose
   GMapping::OrientedPoint initialPose;
-  if(!getOdomPose(initialPose, scan.header.stamp))
+  /*if(!getOdomPose(initialPose, scan.header.stamp))
   {
     ROS_WARN("Unable to determine inital pose of laser! Starting point will be set to zero.");
     initialPose = GMapping::OrientedPoint(0.0, 0.0, 0.0);
-  }
+  }*/
+
+  tf::Transform origin;
+  tf::poseMsgToTF(initial_pose_, origin);
+
+  origin =  origin * laser_pose;
+
+  initialPose = GMapping::OrientedPoint(origin.getOrigin().getX(),
+                                      origin.getOrigin().getY(),
+                                      origin.getRotation().getAngle());
 
   gsp_->setMatchingParameters(maxUrange_, maxRange_, sigma_,
                               kernelSize_, lstep_, astep_, iterations_,
